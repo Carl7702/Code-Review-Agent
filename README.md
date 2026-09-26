@@ -1,19 +1,19 @@
-# Code Review Agent 技术文档
+# ReviewSmith Agent
 
-> 自动化代码审查系统，基于 Claude 的 Agent 架构，支持 GitHub PR 自动审查、安全漏洞扫描、代码质量检查和自动修复。
+> 面向 GitHub Pull Request 的智能代码审查 Agent，支持安全检查、代码质量分析、自动修复、审查记忆和执行轨迹导出。
 
 ---
 
-## 📚 文档导航
+## 文档导航
 
-| 章节 | 内容 | 适合人群 |
+| 章节 | 内容 | 推荐读者 |
 |------|------|----------|
-| [快速开始](#快速开始) | 5 分钟上手教程 | 新手 |
-| [核心概念](#核心概念) | Agent、Skill、Tool 等概念解释 | 新手 |
-| [架构设计](#架构设计) | 系统架构和模块划分 | 进阶 |
-| [详细指南](#详细指南) | 各模块技术细节 | 进阶 |
-| [API 参考](#api-参考) | 工具和配置参考 | 开发者 |
-| [最佳实践](#最佳实践) | 使用建议和常见问题 | 所有用户 |
+| [快速开始](#快速开始) | 安装、配置和第一次审查 | 初次使用者 |
+| [核心概念](#核心概念) | Agent、Skill、Tool 和 Trajectory | 想了解基本原理的人 |
+| [架构设计](#架构设计) | 系统架构和模块划分 | 维护者和二次开发者 |
+| [详细指南](#详细指南) | 各模块的实现方式 | 维护者和二次开发者 |
+| [API 参考](#api-参考) | 命令、配置和工具接口 | 开发者 |
+| [最佳实践](#最佳实践) | 使用建议和常见问题 | 所有使用者 |
 
 ---
 
@@ -22,8 +22,8 @@
 ### 1. 环境准备
 
 ```bash
-# 克隆项目
-git clone <repository-url>
+# 克隆项目。指定目录名是为了匹配当前 Python 包名
+git clone <repository-url> code_review_agent
 cd code_review_agent
 
 # 创建虚拟环境
@@ -40,11 +40,12 @@ pip install -r requirements.txt
 # GitHub Token（必需）
 export GITHUB_TOKEN="ghp_your_github_token"
 
-# Anthropic API Key（必需）
-export ANTHROPIC_API_KEY="sk-ant-api-xxx"
+# OpenAI 或兼容服务的 API Key（必需）
+export OPENAI_API_KEY="your-api-key"
 
 # 可选配置
-export ANTHROPIC_MODEL="claude-opus-4-6"  # 默认模型
+export OPENAI_MODEL="gpt-4o"              # 默认模型
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 ```
 
 **获取 GitHub Token**：
@@ -90,7 +91,7 @@ python cli.py inspect ./trajectories/trace_abc123def456.jsonl
 
 ### Agent（智能体）
 
-Agent 是系统的核心执行单元，模拟 Claude Code 的执行模型。它通过循环调用 LLM 和工具来完成任务。
+Agent 是系统的核心执行单元。它通过循环调用兼容 OpenAI 接口的 LLM 和工具来完成任务。
 
 ```
 ┌─────────────┐
@@ -124,7 +125,7 @@ Skill 是定义 Agent 行为的系统提示（System Prompt）。每个 Skill �
 
 Tool 是 Agent 可以调用的具体功能，分为两类：
 
-**GitHub 工具**（10 个）：
+**GitHub 工具**（11 个）：
 - `get_pull_request` - 获取 PR 详情
 - `get_pull_request_files` - 获取变更文件
 - `create_pull_request_review` - 提交 Review
@@ -183,8 +184,8 @@ Tool 是 Agent 可以调用的具体功能，分为两类：
 │  ┌─────────────┐  ┌──────────┐  ┌────────────┐  ┌───────────┐  │
 │  │ AgentRunner │  │LLMClient │  │ToolRouter  │  │SkillLoader│  │
 │  │             │  │          │  │            │  │           │  │
-│  │ - 主循环    │  │- Anthropic│  │- 工具分发  │  │- 加载     │  │
-│  │ - 轨迹记录  │  │- OpenAI  │  │- 结果截断  │  │- 合并     │  │
+│  │ - 主循环    │  │- OpenAI  │  │- 工具分发  │  │- 加载     │  │
+│  │ - 轨迹记录  │  │兼容接口  │  │- 结果截断  │  │- 合并     │  │
 │  └─────────────┘  └──────────┘  └────────────┘  └───────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               ↓
@@ -192,7 +193,7 @@ Tool 是 Agent 可以调用的具体功能，分为两类：
 │                     Tools Layer                                 │
 │  ┌──────────────┐           ┌─────────────────┐                │
 │  │ GitHubTools  │           │   MemoryTools   │                │
-│  │ - 10 个工具   │           │   - 6 个工具     │                │
+│  │ - 11 个工具   │           │   - 6 个工具     │                │
 │  │ - PyGithub   │           │   - JSONL 存储   │                │
 │  └──────────────┘           └─────────────────┘                │
 └─────────────────────────────────────────────────────────────────┘
@@ -412,8 +413,9 @@ python cli.py inspect trace_abc123.jsonl
 | 环境变量 | 说明 | 默认值 |
 |----------|------|--------|
 | `GITHUB_TOKEN` | GitHub API Token | 必填 |
-| `ANTHROPIC_API_KEY` | Anthropic API Key | 必填 |
-| `ANTHROPIC_MODEL` | 模型名称 | `claude-opus-4-6` |
+| `OPENAI_API_KEY` | OpenAI 或兼容服务的 API Key | 必填 |
+| `OPENAI_MODEL` | 模型名称 | `gpt-4o` |
+| `OPENAI_BASE_URL` | OpenAI 兼容接口地址 | OpenAI 官方地址 |
 | `TRAJECTORIES_DIR` | 轨迹输出目录 | `./trajectories` |
 
 ### GitHub 工具
@@ -507,14 +509,15 @@ python cli.py inspect trace_abc123.jsonl
 ### 5. 常见问题
 
 **Q: 遇到 GitHub API 速率限制怎么办？**
-A: 系统会自动重试，但建议：
+A: 可以：
 - 使用 `--workers 1` 降低并发
 - 检查 `GITHUB_TOKEN` 是否有效
 - 批量审查时增加间隔时间
 
 **Q: LLM 调用失败？**
 A: 检查：
-- `ANTHROPIC_API_KEY` 是否设置
+- `OPENAI_API_KEY` 是否设置
+- 自定义服务使用的 `OPENAI_BASE_URL` 是否正确
 - 网络连接是否正常
 - 模型名称是否正确
 
@@ -542,15 +545,8 @@ A:
 
 ### 自定义审查规则
 
-```python
-# 在 review 前添加自定义规则
-python cli.py review owner/repo 42 --extra-context '{
-  "custom_rules": [
-    "必须使用类型注解",
-    "函数必须有 docstring"
-  ]
-}'
-```
+通过 `tools/memory_tools.py` 中的 `add_rule()` 添加团队规则。规则会保存到
+`~/.claude/review_memory.jsonl`，后续审查可通过 `memory_get_all` 读取。
 
 ---
 
@@ -563,11 +559,6 @@ python cli.py review owner/repo 42 --extra-context '{
 
 ---
 
-## 许可证
+**文档版本**：1.1
 
-[MIT License](LICENSE)
-
----
-
-**文档版本**: 1.0
-**最后更新**: 2026-04-21
+**最后更新**：2026-09-26

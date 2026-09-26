@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Runtime output
+trajectories/
+exports/
+
+# Local editor/tool settings
+.claude/settings.local.json
+.DS_Store

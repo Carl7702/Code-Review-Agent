@@ -1,4 +1,4 @@
-# ReviewSmith Agent
+# Code-Review-Agent
 
 > 面向 GitHub Pull Request 的智能代码审查 Agent，支持安全检查、代码质量分析、自动修复、审查记忆和执行轨迹导出。
 

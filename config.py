@@ -1,6 +1,7 @@
 """
 Configuration for the Code Review Agent.
-All values can be overridden via environment variables.
+Loads .env from the project root before reading configuration.
+Existing process environment variables take precedence over .env values.
 
 Quick start:
   export OPENAI_API_KEY=sk-...           # required
@@ -18,6 +19,11 @@ Custom endpoint examples:
 """
 import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+
+load_dotenv(Path(__file__).resolve().parent / ".env", override=False)
 
 
 class Config:

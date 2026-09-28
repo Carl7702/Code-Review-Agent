@@ -646,6 +646,94 @@ except Exception as e:
     fail("ToolRouter 完整性测试", traceback.format_exc(limit=3))
 
 
+# ─── 配置：自动加载项目根目录 .env ───────────────────────────────────────────
+section("配置 — 自动加载 .env 与环境变量优先级")
+
+try:
+    import shutil
+    import subprocess
+    import textwrap
+
+    with tempfile.TemporaryDirectory() as env_test_dir:
+        test_root = Path(env_test_dir)
+        package_dir = test_root / "code_review_agent"
+        package_dir.mkdir()
+        for filename in ("__init__.py", "config.py"):
+            shutil.copyfile(Path(__file__).parent / filename, package_dir / filename)
+        other_dir = test_root / "other"
+        other_dir.mkdir()
+        (other_dir / ".env").write_text("OPENAI_API_KEY=wrong-directory\n", encoding="utf-8")
+        dotenv_file = package_dir / ".env"
+        dotenv_file.write_text(textwrap.dedent('''\
+            # Quoted values and comments should be parsed normally.
+            OPENAI_API_KEY="dotenv-test-key" # local key
+            OPENAI_BASE_URL=https://example.invalid/v1
+            OPENAI_MODEL="测试模型"
+            GITHUB_TOKEN='dotenv-test-token'
+        '''), encoding="utf-8")
+
+        config_env_names = {
+            "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_MODEL", "GITHUB_TOKEN",
+            "THINKING_BUDGET", "MAX_TOKENS", "ENABLE_THINKING",
+            "TRAJECTORIES_DIR", "EXPORTS_DIR", "DRY_RUN", "MAX_WORKERS",
+            "PYTHON_DOTENV_DISABLED",
+        }
+        isolated_env = {k: v for k, v in os.environ.items() if k not in config_env_names}
+        probe_script = textwrap.dedent('''\
+            import json, os, sys
+            sys.path.insert(0, sys.argv[1])
+            import code_review_agent
+            config = code_review_agent.Config
+            print(json.dumps({
+                "api_key": config.ANTHROPIC_API_KEY,
+                "model": config.ANTHROPIC_MODEL,
+                "github_token": config.GITHUB_TOKEN,
+                "base_url": os.environ.get("OPENAI_BASE_URL"),
+                "process_api_key": os.environ.get("OPENAI_API_KEY"),
+            }))
+        ''')
+
+        def probe_config(overrides=None):
+            completed = subprocess.run(
+                [sys.executable, "-c", probe_script, str(test_root)],
+                cwd=other_dir,
+                env={**isolated_env, **(overrides or {})},
+                capture_output=True, text=True, check=True,
+            )
+            return json.loads(completed.stdout)
+
+        loaded = probe_config()
+        assert loaded["api_key"] == "dotenv-test-key"
+        assert loaded["github_token"] == "dotenv-test-token"
+        assert loaded["model"] == "测试模型"
+        assert loaded["base_url"] == "https://example.invalid/v1"
+        ok("自动加载 .env，支持引号、注释及 UTF-8 配置")
+        assert loaded["process_api_key"] == "dotenv-test-key"
+        ok("从其他目录启动时仍加载项目 .env，并供工具读取")
+
+        overridden = probe_config({
+            "OPENAI_API_KEY": "terminal-test-key", "OPENAI_MODEL": "terminal-model",
+            "OPENAI_BASE_URL": "https://override.invalid/v1", "GITHUB_TOKEN": "",
+        })
+        assert overridden["api_key"] == "terminal-test-key"
+        assert overridden["model"] == "terminal-model"
+        assert overridden["base_url"] == "https://override.invalid/v1"
+        ok("已有环境变量优先于 .env")
+        assert overridden["github_token"] == ""
+        ok("显式设置为空的环境变量也不会被 .env 覆盖")
+
+        dotenv_file.unlink()
+        defaults = probe_config()
+        assert defaults["api_key"] == ""
+        assert defaults["github_token"] == ""
+        assert defaults["model"] == "gpt-4o"
+        assert defaults["base_url"] is None
+        ok("缺少项目 .env 时保留默认值，且不加载其他目录的配置")
+
+except Exception as e:
+    fail(".env 自动加载测试", traceback.format_exc(limit=3))
+
+
 # ─── 最终汇总 ─────────────────────────────────────────────────────────────────
 print(f"\n{'='*60}")
 print(f"  测试结果：{PASS} 通过 / {FAIL} 失败 / {PASS+FAIL} 总计")

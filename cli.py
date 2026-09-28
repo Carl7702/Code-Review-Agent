@@ -227,8 +227,8 @@ def build_parser() -> argparse.ArgumentParser:
     # Common options
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--github-token", default="", help="GitHub token (or set GITHUB_TOKEN)")
-    common.add_argument("--api-key", default="", help="Anthropic API key (or set ANTHROPIC_API_KEY)")
-    common.add_argument("--model", default="", help="Model name (default: claude-opus-4-6)")
+    common.add_argument("--api-key", default="", help="API key (or set OPENAI_API_KEY in .env/environment)")
+    common.add_argument("--model", default="", help="Model name (or set OPENAI_MODEL in .env/environment; default: gpt-4o)")
     common.add_argument("--trajectories-dir", default="./trajectories", help="Trajectories output dir")
     common.add_argument("--dry-run", action="store_true", help="Skip write operations (GitHub)")
     common.add_argument("--no-thinking", action="store_true", help="Disable Extended Thinking")

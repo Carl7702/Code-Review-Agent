@@ -124,7 +124,7 @@ class LLMClient:
 
         if not resolved_api_key:
             raise ValueError(
-                "No API key found. Set OPENAI_API_KEY environment variable.\n"
+                "No API key found. Set OPENAI_API_KEY in the project .env file or environment.\n"
                 "For custom endpoints (Azure, local models, etc.), also set OPENAI_BASE_URL."
             )
 

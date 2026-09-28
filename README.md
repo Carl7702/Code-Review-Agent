@@ -34,7 +34,28 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
+### 2. 配置 `.env`
+
+首次运行时，将配置模板复制到项目根目录：
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，填写模型 API Key 和 GitHub Token，并按服务商修改地址和模型名：
+
+```dotenv
+OPENAI_API_KEY=your-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o
+GITHUB_TOKEN=your-github-token
+```
+
+启动时会自动加载项目根目录的 `.env`，从其他目录启动也可读取。
+已有终端环境变量优先于 `.env`；`--api-key`、`--model`、`--github-token`
+命令行参数优先于两者。`.env` 已在 `.gitignore` 中排除。
+
+也可以继续通过终端设置环境变量：
 
 ```bash
 # GitHub Token（必需）
